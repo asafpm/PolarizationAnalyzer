@@ -172,37 +172,88 @@ class DataReader(threading.Thread):
         self.i = 0
         self.j = 0
         self.tht = 0
+        self.ser = Serial("/dev/ttyACM0",115200)
+        self.ths = []
+        self.vals = []
+
+    def stokes(self, th, i):
+    
+        th = np.array(th)
+        i = np.array(i)
+        signal0 = i
+        
+        signal1 = i*np.sin(2*th)
+        signal2 = i*np.cos(4*th)
+        signal3 = i*np.sin(4*th)
+       
+
+        a = np.trapz(signal0, th)*2/np.pi
+        b = np.trapz(signal1, th)*4/np.pi
+        c = np.trapz(signal2, th)*4/np.pi
+        d = np.trapz(signal3, th)*4/np.pi
+    
+        s0 = a-c
+        s1 = 2*c
+        s2 = 2*d
+        s3 = b
+        
+        phi = 0.5*np.arctan(s2/s1)
+        xi = 0.5*np.arctan(s3/np.sqrt(s1**2+s2**2))
+        
+        return phi, xi
     
     def run(self):
         """Run method, this is the code that runs while thread is alive."""
         
         (x,y,z), r = (0.5,0.5, 0.5), 0.4
         while not self.stopthread.isSet():
+            """
             th = 2*self.i*np.pi/200
             phi, xi = (np.pi*np.cos(self.j/300.)/20.,np.pi*np.sin(self.j/300.)/20.)
             #phi, xi = (0,-np.pi*0.25*self.j/1000.)
             S0,S1,S2,S3 = (1,np.cos(2*phi)*np.cos(2*xi),np.sin(2*phi)*np.cos(2*xi),np.sin(2*xi))
             A,B,C,D = (S0+0.5*S1, S3, S1*0.5, S2*0.5)
             I = 0.5*(A-B*np.sin(2*th)+C*np.cos(4*th)+D*np.sin(4*th))
-            
-            #lock = threading.Lock()
+            """
+            th = 0
+            I = 0
+            s =  self.ser.readline().strip()
+
+            try:
+                n = np.loadtxt(StringIO(s))
+                if n.shape[0] == 2:
+                    th = n[0]
+                    I = n[1]      
+                    self.ths.append(th)          
+                    self.vals.append(I)
+            except ValueError:
+                print "Value Error"
+            except IndexError:
+                print "Index Error"
+                
             lock.acquire()
             self.x.append(np.mod(th, np.pi))
             self.y.append(I)
             
-            if len(self.x) > 99:
+            if len(self.x) > 100:
                 self.x.pop(0)
                 self.y.pop(0)
                 
             lock.release()
 
+            
             if np.mod(th, np.pi) < np.mod(self.tht, np.pi):
+                phi, xi = self.stokes(self.ths,self.vals)
                 self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
+                self.ths = []
+                self.vals = []
+
             self.i += 1
             self.j += 1
             #time.sleep(0.001)
             self.wireframe.discardOldNodes(60)
             self.tht = th
+            
             
     def stop(self):
         """Stop method, sets the event to terminate the thread's main loop"""
@@ -211,7 +262,7 @@ class DataReader(threading.Thread):
 
 class Window():
     
-    def __init__(self, width=640, height=480, fps=30):
+    def __init__(self, width=640, height=480, fps=15):
         pygame.init()
         self.screen = pygame.display.set_mode((width, height),HWSURFACE|DOUBLEBUF|RESIZABLE)
         self.clock = pygame.time.Clock()
@@ -259,7 +310,6 @@ class Window():
                 self.emmit('mouse-button-down', event)
 
                     
-            
             self.screen.fill((255,255,255))
             
             for widget in self.widgets:

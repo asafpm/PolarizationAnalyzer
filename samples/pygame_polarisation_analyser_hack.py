@@ -28,7 +28,7 @@ class Plotter():
             #print span
             xsc = self.w/span
             xp = (x-x[0])*xsc
-            y = 70*y/2.0+240
+            y = 180*y/2.0+240
             for i in range(len(xp)-1):
                 pygame.draw.circle(self.screen, (255, 0, 0), (int(xp[i]),int(y[i])), 2)
                 pygame.draw.line(self.screen, (0, 0, 255), (int(xp[i]),int(y[i])), (int(xp[i+1]),int(y[i+1])), 1)
