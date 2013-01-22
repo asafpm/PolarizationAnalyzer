@@ -61,11 +61,12 @@ class DataReader(threading.Thread):
         self.y = 0
         self.oldx = 0
         self.i = 0
+        self.size = 1
         self.start()
     
     def run(self):      #Run method, this is the code that runs while thread is alive.
 
-        num_bytes = 400                                     #Number of bytes to read at once
+        num_bytes = 16                                     #Number of bytes to read at once
         val = 0                                             #Read value
         
         while not self.stopthread.isSet() :
@@ -99,13 +100,19 @@ class DataReader(threading.Thread):
     def nums_read(self):
         lock.acquire()
         if self.oldx > self.x:
+            self.size = self.i
+            print self.size
             self.i = 0
         if self.i < self.data_buff_size:
             self.data[self.i] = self.x
             self.datay[self.i] = self.y
             self.oldx = self.x
         else:
-            print "ERROR: buffer overrun"
+            print "ERROR: buffer overrun ",self.x,self.y,self.i
+        """
+        self.data[int(self.x)]= self.x
+        self.datay[int(self.x)]= self.y
+        """
         self.i += 1
         #print self.x, self.y
         lock.release()
@@ -123,8 +130,8 @@ class Oscilloscope():
         
     def plot(self, x, y, xmin, xmax, ymin, ymax):
         w, h = self.screen.get_size()
-        x = array(x)
-        y = array(y)
+        x = array(x)[:self.data_reader.i]
+        y = array(y)[:self.data_reader.i]
         
         #Scale data
         xspan = abs(xmax-xmin)
@@ -140,9 +147,12 @@ class Oscilloscope():
             pygame.draw.line(self.screen, (210, 210, 210), (int(w*0.1*i),0), (int(w*0.1*i),h-1), 1)
             
         #Plot data
-        for i in range(len(xp)-1):
-            pygame.draw.line(self.screen, (0, 0, 255), (int(xp[i]), int(yp[i])), 
-                                                     (int(xp[i+1]),int(yp[i+1])), 1)
+        try:
+            for i in range(len(xp)-1):
+                pygame.draw.line(self.screen, (0, 0, 255), (int(xp[i]), int(yp[i])), 
+                                                        (int(xp[i+1]),int(yp[i+1])), 1)
+        except IndexError:
+            print "Error: ",i
             
 
 

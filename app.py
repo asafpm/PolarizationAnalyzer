@@ -12,6 +12,7 @@ import threading
 from serial import Serial
 from StringIO import StringIO
 import time
+from struct import unpack
 
 import sys
 
@@ -27,21 +28,70 @@ class Widget():
         pass
         
 class Oscilloscope(Widget):
-    def __init__(self,rect,(x,y)):
+    def __init__(self,rect, dr):
         Widget.__init__(self,rect)
-        self.x = x
-        self.y = y
+        self.dr = dr
+
       
     def draw(self, surface):
         surface.fill((255,255,255))
-        self.plot(surface, 0,np.pi, 0,1)
+        lock.acquire()
+        x = np.array(self.dr.data)[:self.dr.i]
+        y = np.array(self.dr.datay)[:self.dr.i]
+        if len(x>0):
+            xmax = x.max()
+            q = np.nonzero(self.dr.data2 > xmax)
+            x2 = self.dr.data2[q]
+            y2 = self.dr.datay2[q]
+        else:
+            x2 = np.array([])
+            y2 = np.array([])
+            
+        lock.release()
+        self.draw_grid(surface)
+        self.plot(surface,x,y, 0,2*np.pi, 0,1024)
+        self.plot(surface,x2,y2, 0,2*np.pi, 0,1024)
         
+    def draw_grid(self, surface):
+        w, h = surface.get_size()
+        w -= 1
+        h -= 1
+        
+        #Draw grid
+        for i in range(11):
+            pygame.draw.line(surface, (210, 210, 210), (0,int(h*0.1*i)), (w-1,int(h*0.1*i)), 1)
+            pygame.draw.line(surface, (210, 210, 210), (int(w*0.1*i),0), (int(w*0.1*i),h-1), 1)
+       
+        
+        
+    def plot(self, surface, x, y, xmin, xmax, ymin, ymax):
+        w, h = surface.get_size()
+        w -= 1
+        h -= 1
+        
+        #Scale data
+        xspan = abs(xmax-xmin)
+        yspan = abs(ymax-ymin)
+        xsc = 1.0*(w+1)/xspan
+        ysc = 1.0*h/yspan
+        xp = (x-xmin)*xsc
+        yp = h-(y-ymin)*ysc
+            
+        #Plot data
+        try:
+            for i in range(len(xp)-1):
+                pygame.draw.line(surface, (0, 0, 255), (int(xp[i]), int(yp[i])), 
+                                                        (int(xp[i+1]),int(yp[i+1])), 1)
+        except IndexError:
+            print "Error: ",i
+        
+    """
     def plot(self, surface, xmin, xmax, ymin, ymax):
         
         w, h = surface.get_size()
         lock.acquire()
-        x = np.array(self.x)
-        y = np.array(self.y)
+        x = np.array(self.dr.data)[:self.dr.i]
+        y = np.array(self.dr.datay)[:self.dr.i]
         lock.release()
         si = np.argsort(x)
         x = x[si]
@@ -59,6 +109,33 @@ class Oscilloscope(Widget):
             pygame.draw.line(surface, (0, 0, 255), (int(xp[i]),int(yp[i])), (int(xp[i+1]),int(yp[i+1])), 1)
             
         #pygame.draw.line(surface, (180, 180, 180), (0,int(h*0.5)), (w-1,int(h*0.5)), 1)
+    """
+        
+def stokes(th, i):
+
+    th = np.array(th)
+    i = np.array(i)
+    signal0 = i
+    
+    signal1 = i*np.sin(2*th)
+    signal2 = i*np.cos(4*th)
+    signal3 = i*np.sin(4*th)
+   
+
+    a = np.trapz(signal0, th)*1/np.pi
+    b = np.trapz(signal1, th)*2/np.pi
+    c = np.trapz(signal2, th)*2/np.pi
+    d = np.trapz(signal3, th)*2/np.pi
+
+    s0 = a-c
+    s1 = 2*c
+    s2 = 2*d
+    s3 = b
+    
+    phi = 0.5*np.arctan(s2/s1)
+    xi = 0.5*np.arctan(s3/np.sqrt(s1**2+s2**2))
+    
+    return phi, xi
         
 class WireframeDecorator():
     def __init__(self, wireframe, **kwargs):
@@ -158,7 +235,87 @@ class WireframeViewer(Widget,wf.WireframeGroup):
                     else:
                         pygame.draw.circle(surface, wireframe.nodeColor, (int(node[0]*w), int(node[1]*h)), wireframe.nodeRadius, 0)
                         
+class DataReader(threading.Thread):
+        
+    #Thread event, stops the thread if it is set.
+    stopthread = threading.Event()
+    
+    def __init__(self, wireframe):
+        threading.Thread.__init__(self)                     #Call constructor of parent
+        self.ser = Serial("/dev/ttyACM0",115200)            #Initialize serial port
+        self.data_buff_size = 1024                           #Buffer size
+        self.data = np.zeros(self.data_buff_size)              #Data buffer
+        self.datay = np.zeros(self.data_buff_size)
+        self.data2 = np.zeros(self.data_buff_size)              #Data buffer
+        self.datay2 = np.zeros(self.data_buff_size)
+        self.x = 0
+        self.y = 0
+        self.oldx = 0
+        self.i = 0
+        self.size = 1
+        self.wireframe = wireframe
+        self.start()
+    
+    def run(self):      #Run method, this is the code that runs while thread is alive.
+
+        num_bytes = 16                                     #Number of bytes to read at once
+        val = 0                                             #Read value
+        
+        while not self.stopthread.isSet() :
+            rslt = self.ser.read(num_bytes)             #Read serial data
+            byte_array = unpack('%dB'%num_bytes,rslt)   #Convert serial data to array of numbers
+
+            j = 1
+            first = False #Flag to indicate weather we have the first byte of the number
+            for byte in byte_array:
+                if 224 <= byte <= 255: #If first byte of number
+                    val = (byte & 0b11111) << 5
+                    first = True
+                elif 96 <= byte <= 127: #If other byte of number
+                    if first:
+                        if j == 1:
+                            val |= (byte & 0b11111)
+                            self.x = val
+                        elif j == 2:
+                            val = (byte & 0b11111) << 5
+                        else:
+                            val |= (byte & 0b11111)
+                            self.y = val
+                            self.nums_read()
+                            j = 0
+                        j += 1
+
+
+                    
+        self.ser.close()
+        
+    def nums_read(self):
+        lock.acquire()
+        if self.oldx > self.x:
+            self.size = self.i
+            #print self.size
+            self.i = 0
+            self.data2 = self.data[:self.size].copy()
+            self.datay2 = self.datay[:self.size].copy()
+            phi, xi = stokes(self.data[:self.size],self.datay[:self.size])
+            (x,y,z), r = (0.5,0.5, 0.5), 0.4
+            self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
+            self.wireframe.discardOldNodes(60)
+        if self.i < self.data_buff_size:
+            self.data[self.i] = self.x/1024.0*2*np.pi
+            self.datay[self.i] = self.y
+            self.oldx = self.x
+        else:
+            print "ERROR: buffer overrun ",self.x,self.y,self.i
+        """
+        self.data[int(self.x)]= self.x
+        self.datay[int(self.x)]= self.y
+        """
+        self.i += 1
+        #print self.x, self.y
+        lock.release()                        
                         
+"""
 class DataReader(threading.Thread):
     
     #Thread event, stops the thread if it is set.
@@ -172,7 +329,7 @@ class DataReader(threading.Thread):
         self.i = 0
         self.j = 0
         self.tht = 0
-        self.ser = Serial("/dev/ttyACM0",115200)
+        #self.ser = Serial("/dev/ttyACM0",115200)
         self.ths = []
         self.vals = []
 
@@ -203,21 +360,22 @@ class DataReader(threading.Thread):
         return phi, xi
     
     def run(self):
-        """Run method, this is the code that runs while thread is alive."""
+        #Run method, this is the code that runs while thread is alive.
         
         (x,y,z), r = (0.5,0.5, 0.5), 0.4
         while not self.stopthread.isSet():
-            """
-            th = 2*self.i*np.pi/200
-            phi, xi = (np.pi*np.cos(self.j/300.)/20.,np.pi*np.sin(self.j/300.)/20.)
+
+            #th = 2*self.i*np.pi/200
+            #phi, xi = (np.pi*np.cos(self.j/300.)/20.,np.pi*np.sin(self.j/300.)/20.)
             #phi, xi = (0,-np.pi*0.25*self.j/1000.)
-            S0,S1,S2,S3 = (1,np.cos(2*phi)*np.cos(2*xi),np.sin(2*phi)*np.cos(2*xi),np.sin(2*xi))
-            A,B,C,D = (S0+0.5*S1, S3, S1*0.5, S2*0.5)
-            I = 0.5*(A-B*np.sin(2*th)+C*np.cos(4*th)+D*np.sin(4*th))
-            """
+            #S0,S1,S2,S3 = (1,np.cos(2*phi)*np.cos(2*xi),np.sin(2*phi)*np.cos(2*xi),np.sin(2*xi))
+            #A,B,C,D = (S0+0.5*S1, S3, S1*0.5, S2*0.5)
+            #I = 0.5*(A-B*np.sin(2*th)+C*np.cos(4*th)+D*np.sin(4*th))
+
             th = 0
             I = 0
-            s =  self.ser.readline().strip()
+            #s =  self.ser.readline().strip()
+            s  = "1 1"
 
             try:
                 n = np.loadtxt(StringIO(s))
@@ -256,9 +414,9 @@ class DataReader(threading.Thread):
             
             
     def stop(self):
-        """Stop method, sets the event to terminate the thread's main loop"""
+        #Stop method, sets the event to terminate the thread's main loop
         self.stopthread.set()
-
+"""
 
 class Window():
     
@@ -324,15 +482,15 @@ class Window():
 
 class PolarisationAnalyser():
     def __init__(self):
-        w = Window()
+        w = Window(400,800)
         data = ([1],[1])
-        osc = Oscilloscope((0.1, 0.05, 0.8, 0.4),data)
         self.wfv = WireframeViewer((0.1,0.55,0.8,0.4))
         self.wfv.addWireframe('sphere', shape.Sphere((0.5,0.5, 0.5), 0.4, resolution=24), displayNodes=False)
         
         dwf = wf.Wireframe()
         self.wfv.addWireframe('sphere_points', dwf, displayEdges=False)
-        self.dr = DataReader(data,dwf)
+        self.dr = DataReader(dwf)
+        osc = Oscilloscope((0.1, 0.05, 0.8, 0.4), self.dr)
         
         w.add(osc)
         w.add(self.wfv)
@@ -341,7 +499,6 @@ class PolarisationAnalyser():
         w.connect('mouse-button-down', self.on_mouse_button_down)
         w.connect('quit', self.on_quit)
         
-        self.dr.start()
         w.run()
         
     def on_mouse_motion(self,event):
