@@ -317,7 +317,8 @@ class DataReader(threading.Thread):
             (x,y,z), r = (0.5,0.5, 0.5), 0.4
             #self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
             if s0 > 0:
-                self.wireframe.addNodes([(x + r*s1/s0, y + r*s3/s0, z + r*s2/s0 )])
+                l = np.sqrt(s1**2+s2**2+s3**2)
+                self.wireframe.addNodes([(x + r*s1/l, y + r*s3/l, z + r*s2/l )])
             self.wireframe.discardOldNodes(60)
         if self.i < self.data_buff_size:
             self.data[self.i] = self.x/1024.0*2*np.pi
