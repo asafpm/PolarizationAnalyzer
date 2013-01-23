@@ -132,10 +132,12 @@ def stokes(th, i):
     s2 = 2*d
     s3 = b
     
-    phi = 0.5*np.arctan(s2/s1)
-    xi = 0.5*np.arctan(s3/np.sqrt(s1**2+s2**2))
+    #phi = 0.5*np.arctan(s2/s1)
+    #xi = 0.5*np.arctan(s3/np.sqrt(s1**2+s2**2))
+    phi = 0.5*np.arctan2(s2,s1)
+    xi = 0.5*np.arccos(s3/np.sqrt(s1**2+s2**2+s3**2))
     
-    return phi, xi
+    return s0, s1, s2, s3
         
 class WireframeDecorator():
     def __init__(self, wireframe, **kwargs):
@@ -225,15 +227,24 @@ class WireframeViewer(Widget,wf.WireframeGroup):
                         
                         pygame.draw.aaline(surface, wireframe.edgeColor, (nodes[n1][0]*w, nodes[n1][1]*h), (nodes[n2][0]*w, nodes[n2][1]*h), 1)
             if wireframe.displayNodes:
+                n = 0
                 for node in nodes:
+                    
+                    if n == nodes.shape[0]-1:
+                        color = (255,0,0)
+                    else:
+                        color = (0,0,255)
+                    n += 1
+
                     if self.perspective:
                         if node[2] > -self.perspective:
                             z = self.perspective/ (self.perspective + node[2])
                             x = 0.5  + z*(node[0] - 0.5)
                             y = 0.5 + z*(node[1] - 0.5)
-                            pygame.draw.circle(surface, wireframe.nodeColor, (int(x*w), int(y*h)), wireframe.nodeRadius, 0)
+                            pygame.draw.circle(surface, color, (int(x*w), int(y*h)), wireframe.nodeRadius, 0)
                     else:
-                        pygame.draw.circle(surface, wireframe.nodeColor, (int(node[0]*w), int(node[1]*h)), wireframe.nodeRadius, 0)
+                        pygame.draw.circle(surface, color, (int(node[0]*w), int(node[1]*h)), wireframe.nodeRadius, 0)
+                        
                         
 class DataReader(threading.Thread):
         
@@ -255,6 +266,10 @@ class DataReader(threading.Thread):
         self.size = 1
         self.wireframe = wireframe
         self.start()
+        
+    def stop(self):
+        #Stop method, sets the event to terminate the thread's main loop
+        self.stopthread.set()
     
     def run(self):      #Run method, this is the code that runs while thread is alive.
 
@@ -297,9 +312,12 @@ class DataReader(threading.Thread):
             self.i = 0
             self.data2 = self.data[:self.size].copy()
             self.datay2 = self.datay[:self.size].copy()
-            phi, xi = stokes(self.data[:self.size],self.datay[:self.size])
+            s0, s1, s2, s3 = stokes(self.data[:self.size],self.datay[:self.size])
+            #print phi/np.pi, xi/np.pi
             (x,y,z), r = (0.5,0.5, 0.5), 0.4
-            self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
+            #self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
+            if s0 > 0:
+                self.wireframe.addNodes([(x + r*s1/s0, y + r*s3/s0, z + r*s2/s0 )])
             self.wireframe.discardOldNodes(60)
         if self.i < self.data_buff_size:
             self.data[self.i] = self.x/1024.0*2*np.pi

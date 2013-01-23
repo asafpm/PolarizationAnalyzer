@@ -19,6 +19,7 @@ int r;
 int t;
 int s;
 const double pi = 3.141592;
+double phi = 0, th;
 
 void setup() {
   // initialize serial communications at 115200 bps:
@@ -29,9 +30,14 @@ void loop() {
   r = 1023;//random(1024);
   t = 0;
   while(t<=r) {
-    s = (int)1023*pow(sin(2*pi*t/1024.),2);
+    th = 2*pi*t/1023.0;
+    //s = (int)1023*0.5*(1+0.5*cos(2*phi)+0.5*cos(2*phi)*cos(4*th)+0.5*sin(2*phi)*sin(4*th));//Linear
+    s = (int)1023*0.5*(1-cos(2*phi)*sin(2*th)+0.5*sin(2*phi)*sin(4*th));//Circular-Linear
     send_pair(t,s);
     t++;
+    phi += 0.0001;
+    if(phi > pi)
+      phi = 0;
   }
 }
 
