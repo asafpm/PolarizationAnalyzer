@@ -264,6 +264,10 @@ class DataReader(threading.Thread):
         self.oldx = 0
         self.i = 0
         self.size = 1
+        self.s0 = [0,0,0,0,0]
+        self.s1 = self.s0
+        self.s2 = self.s0
+        self.s3 = self.s0
         self.wireframe = wireframe
         self.start()
         
@@ -314,6 +318,19 @@ class DataReader(threading.Thread):
             self.data2 = self.data[:self.size].copy() #angle
             self.datay2 = self.datay[:self.size].copy() #intensity
             s0, s1, s2, s3 = stokes(np.linspace(0,2*np.pi,self.size),self.datay[:self.size])
+            # Calculate 5 point moving average
+            self.s0.pop()
+            self.s1.pop()
+            self.s2.pop()
+            self.s3.pop()
+            self.s0.append(s0)
+            self.s0.append(s1)
+            self.s0.append(s2)
+            self.s0.append(s3)
+            s0 = sum(self.s0)/len(self.s0)
+            s1 = sum(self.s1)/len(self.s1)
+            s2 = sum(self.s2)/len(self.s2)
+            s3 = sum(self.s3)/len(self.s3)
             (x,y,z), r = (0.5,0.5, 0.5), 0.4
             if s0 > 0: #If the intensity is greater than zero
                 l = np.sqrt(s1**2+s2**2+s3**2)
