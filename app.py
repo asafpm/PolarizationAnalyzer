@@ -306,17 +306,16 @@ class DataReader(threading.Thread):
         
     def nums_read(self):
         lock.acquire()
+        # If a turn of the waveplate is complete
         if self.oldx > self.x:
             self.size = self.i
             #print self.size
             self.i = 0
-            self.data2 = self.data[:self.size].copy()
-            self.datay2 = self.datay[:self.size].copy()
-            s0, s1, s2, s3 = stokes(self.data[:self.size],self.datay[:self.size])
-            #print phi/np.pi, xi/np.pi
+            self.data2 = self.data[:self.size].copy() #angle
+            self.datay2 = self.datay[:self.size].copy() #intensity
+            s0, s1, s2, s3 = stokes(np.linspace(0,2*np.pi,self.size),self.datay[:self.size])
             (x,y,z), r = (0.5,0.5, 0.5), 0.4
-            #self.wireframe.addNodes([(x + r*np.sin(2*phi)*np.sin(np.pi*0.5-2*xi), y - r*np.cos(np.pi*0.5-2*xi), z - r*np.cos(2*phi)*np.sin(np.pi*0.5-2*xi) )])
-            if s0 > 0:
+            if s0 > 0: #If the intensity is greater than zero
                 l = np.sqrt(s1**2+s2**2+s3**2)
                 self.wireframe.addNodes([(x + r*s1/l, y + r*s3/l, z + r*s2/l )])
             self.wireframe.discardOldNodes(60)
