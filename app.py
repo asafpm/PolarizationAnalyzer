@@ -264,10 +264,10 @@ class DataReader(threading.Thread):
         self.oldx = 0
         self.i = 0
         self.size = 1
-        self.s0 = [0,0,0,0,0]
-        self.s1 = self.s0
-        self.s2 = self.s0
-        self.s3 = self.s0
+        self.s0 = [0]*5
+        self.s1 = [0]*5
+        self.s2 = [0]*5
+        self.s3 = [0]*5
         self.wireframe = wireframe
         self.start()
         
@@ -323,10 +323,10 @@ class DataReader(threading.Thread):
             self.s1.pop()
             self.s2.pop()
             self.s3.pop()
-            self.s0.append(s0)
-            self.s0.append(s1)
-            self.s0.append(s2)
-            self.s0.append(s3)
+            self.s0.insert(0,s0)
+            self.s1.insert(0,s1)
+            self.s2.insert(0,s2)
+            self.s3.insert(0,s3)
             s0 = sum(self.s0)/len(self.s0)
             s1 = sum(self.s1)/len(self.s1)
             s2 = sum(self.s2)/len(self.s2)
