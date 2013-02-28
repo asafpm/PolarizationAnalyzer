@@ -144,7 +144,7 @@ class WireframeDecorator():
         self._wireframe = wireframe
         self.nodeColor = (0,0,255)
         self.edgeColor = (0,255,0)
-        self.nodeRadius = 2
+        self.nodeRadius = 4
         self.displayNodes = True
         self.displayEdges = True
         
@@ -253,7 +253,7 @@ class DataReader(threading.Thread):
     
     def __init__(self, wireframe):
         threading.Thread.__init__(self)                     #Call constructor of parent
-        self.ser = Serial("/dev/ttyACM0",115200)            #Initialize serial port
+        self.ser = Serial("/dev/ttyACM1",115200)            #Initialize serial port
         self.data_buff_size = 1024                           #Buffer size
         self.data = np.zeros(self.data_buff_size)              #Data buffer
         self.datay = np.zeros(self.data_buff_size)
@@ -331,6 +331,7 @@ class DataReader(threading.Thread):
             s1 = sum(self.s1)/len(self.s1)
             s2 = sum(self.s2)/len(self.s2)
             s3 = sum(self.s3)/len(self.s3)
+            print([s1,s2,s3])
             (x,y,z), r = (0.5,0.5, 0.5), 0.4
             if s0 > 0: #If the intensity is greater than zero
                 l = np.sqrt(s1**2+s2**2+s3**2)
@@ -517,9 +518,9 @@ class Window():
 
 class PolarisationAnalyser():
     def __init__(self):
-        w = Window(400,800)
+        w = Window(800,400)
         data = ([1],[1])
-        self.wfv = WireframeViewer((0.1,0.55,0.8,0.4))
+        self.wfv = WireframeViewer((0.4,0.1,0.5,0.8))
         self.wfv.addWireframe('sphere', shape.Sphere((0.5,0.5, 0.5), 0.4, resolution=24), displayNodes=False)
         
         dwf = wf.Wireframe()
@@ -537,7 +538,7 @@ class PolarisationAnalyser():
         owf.addNodes([(x + r*s1/l, y + r*s3/l, z + r*s2/l )])
         
         self.dr = DataReader(dwf)
-        osc = Oscilloscope((0.1, 0.05, 0.8, 0.4), self.dr)
+        osc = Oscilloscope((0.05, 0.1, 0.3, 0.8), self.dr)
         
         w.add(osc)
         w.add(self.wfv)
