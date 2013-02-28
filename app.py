@@ -524,6 +524,18 @@ class PolarisationAnalyser():
         
         dwf = wf.Wireframe()
         self.wfv.addWireframe('sphere_points', dwf, displayEdges=False)
+        
+        owf = wf.Wireframe()
+        self.wfv.addWireframe('target', owf, nodeColor=(200,0,200))
+        
+        #TODO: add target node (need Stokes parameters of target node)
+        s1 = 1
+        s2 = 0
+        s3 = 1
+        (x,y,z), r = (0.5,0.5, 0.5), 0.4
+        l = np.sqrt(s1**2+s2**2+s3**2)
+        owf.addNodes([(x + r*s1/l, y + r*s3/l, z + r*s2/l )])
+        
         self.dr = DataReader(dwf)
         osc = Oscilloscope((0.1, 0.05, 0.8, 0.4), self.dr)
         
