@@ -530,9 +530,9 @@ class PolarisationAnalyser():
         self.wfv.addWireframe('target', owf, nodeColor=(200,0,200))
         
         #TODO: add target node (need Stokes parameters of target node)
-        s1 = 1
-        s2 = 0
-        s3 = 1
+        s1 = 0.93
+        s2 = -0.36
+        s3 = 0
         (x,y,z), r = (0.5,0.5, 0.5), 0.4
         l = np.sqrt(s1**2+s2**2+s3**2)
         owf.addNodes([(x + r*s1/l, y + r*s3/l, z + r*s2/l )])
