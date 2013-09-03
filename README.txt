@@ -1,5 +1,8 @@
 This repository contains the code for a polarization analyzer.
 
+For more information see blog post:
+http://asaf.pm/wordpress/?p=198
+
 Files:
 
 - PolarisationAnalyser.py
