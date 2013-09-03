@@ -1,12 +1,27 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 #
+# Polarisation Analyser
+#
+# Copyright (C) 2013 Asaf Paris Mandoki http://asaf.pm
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import pygame
 from pygame.locals import *
 import numpy as np
 import wireframe as wf
-import basicShapes as shape
 
 import threading
 from serial import Serial
@@ -16,14 +31,15 @@ from struct import unpack
 
 import sys
 
-
+#Widget defines the interface for a widget managed by our rudimentary Window widget manager
 class Widget():
     def __init__(self, rect):
         self.left, self.top, self.width, self.height = rect
         
     def draw(self, surface):
         pass
-        
+
+#Oscilloscope plots the photodiode data        
 class Oscilloscope(Widget):
     def __init__(self,rect, data_reader):
         Widget.__init__(self,rect)
@@ -95,6 +111,7 @@ class Oscilloscope(Widget):
         except IndexError:
             print "Error: ",i
     
+#Calculate Stokes parameters
 class StokesCalculator():
     def __init__(self,data_reader, wireframe):
         data_reader.add_turn_listener(self.turn_finished)
@@ -176,7 +193,8 @@ class WireframeDecorator():
     def __getattr__(self, name):
         return getattr(self._wireframe, name)
     
-        
+
+#WireframeViewer from http://www.petercollingridge.co.uk/pygame-3d-graphics-tutorial
 class WireframeViewer(Widget,wf.WireframeGroup):
     def __init__(self,rect,data_reader):
         Widget.__init__(self,rect)
@@ -264,6 +282,32 @@ class WireframeViewer(Widget,wf.WireframeGroup):
                         pygame.draw.circle(surface, color, (int(node[0]*w), int(node[1]*h)), wireframe.nodeRadius, 0)
                         
                         
+                            
+#Sphere from http://www.petercollingridge.co.uk/pygame-3d-graphics-tutorial                            
+def Sphere((x,y,z), r, resolution=10):
+    """ Returns a wireframe spheroid centred on (x,y,z)
+        with a radii of (rx,ry,rz) in the respective axes. """
+    
+    spheroid   = wf.Wireframe()
+    latitudes  = [n*np.pi/resolution for n in range(1,resolution)]
+    longitudes = [n*2*np.pi/resolution for n in range(resolution)]
+
+    # Add nodes except for poles
+    spheroid.addNodes([(x + r*np.sin(n)*np.sin(m), y - r*np.cos(m), z - r*np.cos(n)*np.sin(m)) for m in latitudes for n in longitudes])
+
+    # Add square faces to whole spheroid but poles
+    num_nodes = resolution*(resolution-1)
+    spheroid.addFaces([(m+n, (m+resolution)%num_nodes+n, (m+resolution)%resolution**2+(n+1)%resolution, m+(n+1)%resolution) for n in range(resolution) for m in range(0,num_nodes-resolution,resolution)])
+
+    # Add poles and triangular faces around poles
+    spheroid.addNodes([(x, y+r, z),(x, y-r, z)])
+    spheroid.addFaces([(n, (n+1)%resolution, num_nodes+1) for n in range(resolution)])
+    start_node = num_nodes-resolution
+    spheroid.addFaces([(num_nodes, start_node+(n+1)%resolution, start_node+n) for n in range(resolution)])
+
+    return spheroid
+    
+#DataReader handles all the serial communication
 class DataReader(threading.Thread):
         
     #Thread event, stops the thread if it is set.
@@ -367,6 +411,7 @@ class DataReader(threading.Thread):
         self.i += 1                       
 
 
+#Window is a rudimentary widget manager
 class Window():
     
     def __init__(self, width=640, height=480, fps=15):
@@ -435,7 +480,7 @@ class PolarisationAnalyser():
         
         self.dr = DataReader()
         self.wfv = WireframeViewer((0.4,0.1,0.5,0.8),self.dr)
-        self.wfv.addWireframe('sphere', shape.Sphere((0.5,0.5, 0.5), 0.4, resolution=24), displayNodes=False)
+        self.wfv.addWireframe('sphere', Sphere((0.5,0.5, 0.5), 0.4, resolution=24), displayNodes=False)
         
         dwf = wf.Wireframe()
         self.wfv.addWireframe('sphere_points', dwf, displayEdges=True)
